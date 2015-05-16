@@ -3,7 +3,7 @@
  * I'm so meta even this acronym.
  */
 
-require __DIR__ . '/../Config.php';
+require __DIR__ . '/Config.php';
 
 
 class Tally
