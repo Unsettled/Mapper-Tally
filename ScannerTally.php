@@ -1,6 +1,11 @@
 <?php
 /**
- * I'm so meta even this acronym.
+ * Author: Zumochi <zumpyzum@gmail.com>
+ *
+ * By default this script outputs a dump of last month's 5 best scanners (by systems added).
+ *
+ * You can also specify start and end dates through GET (e.g. ScannerTally.php?start=2015-01-01&end=2015-05-01
+ * You can also send the output to Slack instead of the browser, simply specify slack=true or slack=1
  */
 
 require __DIR__ . '/Config.php';
@@ -84,6 +89,7 @@ class Tally
     function SendToSlack($data)
     {
         $slackURL = SLACK_URL;
+        if (empty($slackURL)) exit("Slack URL empty.");
         $slackFormat = array();
 
         foreach ($data as $key => $person) {
@@ -96,7 +102,8 @@ class Tally
         $encode = array(
             "username"    => "Scanning Tally Bot",
             "attachments" => array(array(
-                "fallback" => "This month's top scanner: " . $data[0]['username'] . " with " . $data[0]['log_count'] . " systems added!",
+                "fallback" => "This month's top scanner: " .
+                    $data[0]['username'] . " with " . $data[0]['log_count'] . " systems added!",
                 "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
                 "color"    => $this->GetRandomColor($data[0]['username']),
                 "fields"   => $slackFormat,
