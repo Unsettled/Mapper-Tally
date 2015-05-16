@@ -97,7 +97,8 @@ class Tally
             "username"    => "Scanning Tally Bot",
             "attachments" => array(array(
                 "fallback" => "This month's top scanner: " . $data[0]['username'] . " with " . $data[0]['log_count'] . " systems added!",
-                "pretext"  => "Top Scanners for period: " . $this->DateStart . " to " . $this->DateEnd . ".",
+                "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
+                "color"    => $this->GetRandomColor($data[0]['username']),
                 "fields"   => $slackFormat,
             )),
         );
@@ -111,6 +112,10 @@ class Tally
         curl_setopt($CH, CURLOPT_RETURNTRANSFER, true);
         curl_exec($CH);
         curl_close($CH);
+    }
+
+    function GetRandomColor($name) {
+        return "#" . substr(md5($name), 0, 6);
     }
 }
 
