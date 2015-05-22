@@ -14,7 +14,7 @@ require __DIR__ . '/Config.php';
 class Tally
 {
     private $DBH;
-    private $DateStart, $DateEnd;
+    public $DateStart, $DateEnd, $Out, $Action, $LimitNumber;
 
     function __construct()
     {
@@ -24,6 +24,15 @@ class Tally
         } catch (PDOException $e) {
             exit("Error connecting to database: " . "<pre>" . $e->getMessage() . "</pre>");
         }
+    }
+
+    function Execute() {
+        $this->SetDates();
+        $this->SetAction();
+        $this->SetLimit();
+        $this->SetOutputMethod();
+
+        return $this->ExecuteQuery();
     }
 
     function SetDates()
@@ -37,7 +46,7 @@ class Tally
             if (checkdate($month, $day, $year)) {
                 $this->DateStart = $input;
             } else {
-                echo "<pre>Error validating start date input.<br>";
+                echo "Error validating start date input.<br>";
                 echo "Make sure you use YYYY-MM-DD for the date format.";
                 exit;
             };
@@ -51,7 +60,7 @@ class Tally
                 if (checkdate($month, $day, $year)) {
                     $this->DateEnd = $input;
                 } else {
-                    echo "<pre>Error validating end date input.<br>";
+                    echo "Error validating end date input.<br>";
                     echo "Make sure you use YYYY-MM-DD for the date format.";
                     exit;
                 }
@@ -65,18 +74,85 @@ class Tally
         }
     }
 
+    function SetAction()
+    {
+        $events = array(
+            'updated_signatures'  => 'Updated signature',
+            'added_signature'     => 'Created signature',
+            'added_system'        => 'Added system',
+            'edited_system'       => 'Edited System',
+        );
+
+        if (!empty($_GET['action'])) {
+            $input = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
+
+            if (array_key_exists($input, $events)) {
+                $action = $events[$input];
+            } else {
+                echo "Error validating event type.<br>";
+                echo "Please use one of the following:<br>";
+                echo "<pre>";
+                foreach ($events as $key => $event) echo $key . "\n";
+                echo "</pre>";
+                exit;
+            }
+        } else {
+            $action = $events['added_system'];
+        }
+
+        $this->Action = $action;
+    }
+
+    function SetLimit() {
+        if (!empty($_GET['limit'])) {
+            $input = filter_input(INPUT_GET, 'limit', FILTER_SANITIZE_NUMBER_INT);
+
+            $this->LimitNumber = intval($input);
+        } else {
+            $this->LimitNumber = 5;
+        }
+    }
+
+    function SetOutputMethod() {
+        $methods = array(
+            'stdout',
+            'slack',
+        );
+
+        if (!empty($_GET['out'])) {
+            $outputMethod = filter_input(INPUT_GET, 'out', FILTER_SANITIZE_STRING);
+        } else {
+            $outputMethod = "stdout";
+        }
+
+        if (array_search($outputMethod, $methods) === false) {
+            echo "Error validating output method.<br>";
+            echo "Please use one of the following:<br>";
+            echo "<pre>";
+            foreach ($methods as $method) echo $method . "\n";
+            echo "</pre>";
+            exit;
+        } else {
+            $this->Out = $outputMethod;
+        }
+    }
+
     function ExecuteQuery()
     {
+        $LogAction = $this->Action . "%";
+
         $STH = $this->DBH->prepare(
             "SELECT user.username, COUNT(1) AS log_count FROM Map_maplog log
             JOIN account_ewsuser user ON user.id = log.user_id
-            WHERE log.action LIKE 'Added system%'
+            WHERE log.action LIKE :LogAction
             AND (log.timestamp >= :DateEnd AND log.timestamp <= :DateStart)
             GROUP BY user.id ORDER BY log_count DESC
-            LIMIT 5"
+            LIMIT :LimitNumber"
         );
+        $STH->bindParam(':LogAction', $LogAction);
         $STH->bindParam(':DateStart', $this->DateEnd);
         $STH->bindParam(':DateEnd', $this->DateStart);
+        $STH->bindParam(':LimitNumber', $this->LimitNumber, PDO::PARAM_INT);
         $STH->setFetchMode(PDO::FETCH_ASSOC);
 
         if ($STH->execute()) {
@@ -121,20 +197,23 @@ class Tally
         curl_close($CH);
     }
 
-    function GetRandomColor($name) {
+    function GetRandomColor($name)
+    {
         return "#" . substr(md5($name), 0, 6);
     }
 }
 
 
 $Tally = new Tally();
-$Tally->SetDates();
-$out = $Tally->ExecuteQuery();
+$data = $Tally->Execute();
 
-if (!empty($_GET['slack'])) {
-    $slack = filter_input(INPUT_GET, 'slack', FILTER_VALIDATE_BOOLEAN);
-
-    if ($slack) {
-        $Tally->SendToSlack($out);
-    } else var_dump($out);
-} else var_dump($out);
+switch ($Tally->Out) {
+    case 'slack':
+        $Tally->SendToSlack($data);
+        break;
+    case 'stdout':
+        default;
+    default:
+        var_dump($data);
+        break;
+}
