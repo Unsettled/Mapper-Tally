@@ -15,6 +15,7 @@ class Tally
 {
     private $DBH;
     public $DateStart, $DateEnd, $Out, $Action, $LimitNumber;
+    public $dateTimeFormat = 'Y-m-d';
 
     function __construct()
     {
@@ -26,7 +27,8 @@ class Tally
         }
     }
 
-    function Execute() {
+    function Execute()
+    {
         $this->SetDates();
         $this->SetAction();
         $this->SetLimit();
@@ -37,83 +39,73 @@ class Tally
 
     function SetDates()
     {
-        if (!empty($_GET['start'])) {
-            $input = filter_input(INPUT_GET, 'start', FILTER_SANITIZE_NUMBER_INT);
-            $year = substr($input, 0, 4);
-            $month = substr($input, 5, 2);
-            $day = substr($input, 8, 2);
+        $inputStart = filter_input(INPUT_GET, 'start', FILTER_SANITIZE_STRING);
+        $inputEnd = filter_input(INPUT_GET, 'end', FILTER_SANITIZE_STRING);
 
-            if (checkdate($month, $day, $year)) {
-                $this->DateStart = $input;
-            } else {
-                echo "Error validating start date input.<br>";
-                echo "Make sure you use YYYY-MM-DD for the date format.";
-                exit;
-            };
-
-            if (!empty($_GET['end'])) {
-                $input = filter_input(INPUT_GET, 'end', FILTER_SANITIZE_NUMBER_INT);
-                $year = substr($input, 0, 4);
-                $month = substr($input, 5, 2);
-                $day = substr($input, 8, 2);
-
-                if (checkdate($month, $day, $year)) {
-                    $this->DateEnd = $input;
-                } else {
-                    echo "Error validating end date input.<br>";
-                    echo "Make sure you use YYYY-MM-DD for the date format.";
-                    exit;
-                }
-            } else {
-                exit("You need to provide an end date if you specify a start date!");
-            }
-        } else {
-            $this->DateEnd = date('Y-m-d');
+        if (empty($inputStart) && empty($inputEnd)) {
+            $this->DateEnd = date($this->dateTimeFormat);
             $last = strtotime('-1 month');
-            $this->DateStart = date('Y-m-d', $last);
+            $this->DateStart = date($this->dateTimeFormat, $last);
+
+            return;
         }
+
+        try {
+            $dateStart = new DateTime($inputStart);
+            $dateEnd = new DateTime($inputEnd);
+        } catch (Exception $e) {
+            echo "Error validating date input.<br>";
+            echo "Make sure you use YYYY-MM-DD for the date format.";
+            exit;
+        }
+
+        $this->DateStart = $dateStart->format($this->dateTimeFormat);
+        $this->DateEnd = $dateEnd->format($this->dateTimeFormat);
     }
 
     function SetAction()
     {
         $events = array(
-            'updated_signatures'  => 'Updated signature',
-            'added_signature'     => 'Created signature',
-            'added_system'        => 'Added system',
-            'edited_system'       => 'Edited System',
+            'updated_signatures' => 'Updated signature',
+            'added_signature'    => 'Created signature',
+            'added_system'       => 'Added system',
+            'edited_system'      => 'Edited System',
         );
 
-        if (!empty($_GET['action'])) {
-            $input = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
+        if (empty($_GET['action'])) {
+            $this->Action = $events['added_system'];
 
-            if (array_key_exists($input, $events)) {
-                $action = $events[$input];
-            } else {
-                echo "Error validating event type.<br>";
-                echo "Please use one of the following:<br>";
-                echo "<pre>";
-                foreach ($events as $key => $event) echo $key . "\n";
-                echo "</pre>";
-                exit;
-            }
-        } else {
-            $action = $events['added_system'];
+            return;
         }
 
-        $this->Action = $action;
+        $input = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
+
+        if (!array_key_exists($input, $events)) {
+            echo "Error validating event type.<br>";
+            echo "Please use one of the following:<br>";
+            echo "<pre>";
+            foreach ($events as $key => $event) echo $key . "\n";
+            echo "</pre>";
+            exit;
+        }
+
+        $this->Action = $events[$input];
     }
 
-    function SetLimit() {
-        if (!empty($_GET['limit'])) {
-            $input = filter_input(INPUT_GET, 'limit', FILTER_SANITIZE_NUMBER_INT);
-
-            $this->LimitNumber = intval($input);
-        } else {
+    function SetLimit()
+    {
+        if (empty($_GET['limit'])) {
             $this->LimitNumber = 5;
+
+            return;
         }
+
+        $input = filter_input(INPUT_GET, 'limit', FILTER_SANITIZE_NUMBER_INT);
+        $this->LimitNumber = intval($input);
     }
 
-    function SetOutputMethod() {
+    function SetOutputMethod()
+    {
         $methods = array(
             'stdout',
             'slack',
@@ -212,7 +204,6 @@ switch ($Tally->Out) {
         $Tally->SendToSlack($data);
         break;
     case 'stdout':
-        default;
     default:
         var_dump($data);
         break;
