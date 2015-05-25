@@ -17,6 +17,25 @@ class Tally
     public $DateStart, $DateEnd, $Out, $Action, $LimitNumber;
     public $dateTimeFormat = 'Y-m-d';
 
+    public $EventTexts = array(
+        'updated_signatures' => array(
+            'slackText' => 'updates signatures',
+            'dbText'    => 'Updated signature',
+        ),
+        'added_signature'    => array(
+            'slackText' => 'added signatures',
+            'dbText'    => 'Created signature'
+        ),
+        'added_system'       => array(
+            'slackText' => 'added systems',
+            'dbText'    => 'Added system',
+        ),
+        'edited_system'      => array(
+            'slackText' => 'edited systems',
+            'dbText'    => 'Edited System',
+        ),
+    );
+
     function __construct()
     {
         try {
@@ -65,43 +84,30 @@ class Tally
 
     function SetAction()
     {
-        $events = array(
-            'updated_signatures' => 'Updated signature',
-            'added_signature'    => 'Created signature',
-            'added_system'       => 'Added system',
-            'edited_system'      => 'Edited System',
-        );
+        $action = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
 
-        if (empty($_GET['action'])) {
-            $this->Action = $events['added_system'];
+        if (empty($action)) {
+            $action = 'added_system';
+        }
+
+        if (array_key_exists($action, $this->EventTexts)) {
+            $this->Action = $this->EventTexts[$action]['dbText'];
 
             return;
         }
 
-        $input = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
-
-        if (!array_key_exists($input, $events)) {
-            echo "Error validating event type.<br>";
-            echo "Please use one of the following:<br>";
-            echo "<pre>";
-            foreach ($events as $key => $event) echo $key . "\n";
-            echo "</pre>";
-            exit;
-        }
-
-        $this->Action = $events[$input];
+        echo "Error validating event type.<br>";
+        echo "Please use one of the following:<br>";
+        echo "<pre>";
+        foreach ($this->EventTexts as $key => $event) echo $key . "\n";
+        echo "</pre>";
+        exit;
     }
 
     function SetLimit()
     {
-        if (empty($_GET['limit'])) {
-            $this->LimitNumber = 5;
-
-            return;
-        }
-
         $input = filter_input(INPUT_GET, 'limit', FILTER_SANITIZE_NUMBER_INT);
-        $this->LimitNumber = intval($input);
+        $this->LimitNumber = $input ? $input : 5;
     }
 
     function SetOutputMethod()
@@ -111,11 +117,9 @@ class Tally
             'slack',
         );
 
-        if (!empty($_GET['out'])) {
-            $outputMethod = filter_input(INPUT_GET, 'out', FILTER_SANITIZE_STRING);
-        } else {
-            $outputMethod = "stdout";
-        }
+        $input = filter_input(INPUT_GET, 'out', FILTER_SANITIZE_STRING);
+
+        $outputMethod = $input ? $input : "stdout";
 
         if (array_search($outputMethod, $methods) === false) {
             echo "Error validating output method.<br>";
@@ -124,9 +128,9 @@ class Tally
             foreach ($methods as $method) echo $method . "\n";
             echo "</pre>";
             exit;
-        } else {
-            $this->Out = $outputMethod;
         }
+
+        $this->Out = $outputMethod;
     }
 
     function ExecuteQuery()
@@ -160,10 +164,12 @@ class Tally
         if (empty($slackURL)) exit("Slack URL empty.");
         $slackFormat = array();
 
+        $appendActionValue = $this->EventTexts[$this->Action]['slackText'] . ".";
+
         foreach ($data as $key => $person) {
             $slackFormat[$key] = array(
                 "title" => $person['username'],
-                "value" => $person['log_count'] . " systems added",
+                "value" => $person['log_count'] . $appendActionValue,
             );
         }
 
@@ -171,7 +177,7 @@ class Tally
             "username"    => "Scanning Tally Bot",
             "attachments" => array(array(
                 "fallback" => "This month's top scanner: " .
-                    $data[0]['username'] . " with " . $data[0]['log_count'] . " systems added!",
+                    $data[0]['username'] . " with " . $data[0]['log_count'] . $appendActionValue,
                 "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
                 "color"    => $this->GetRandomColor($data[0]['username']),
                 "fields"   => $slackFormat,
