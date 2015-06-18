@@ -21,18 +21,22 @@ class Tally
         'updated_signatures' => array(
             'slackText' => 'updates signatures',
             'dbText'    => 'Updated signature',
+            'desc'      => 'Number of updated signatures'
         ),
         'added_signature'    => array(
             'slackText' => 'added signatures',
-            'dbText'    => 'Created signature'
+            'dbText'    => 'Created signature',
+            'desc'      => 'Number of signatures added',
         ),
         'added_system'       => array(
             'slackText' => 'added systems',
             'dbText'    => 'Added system',
+            'desc'      => 'Number of systems added',
         ),
         'edited_system'      => array(
             'slackText' => 'edited systems',
             'dbText'    => 'Edited System',
+            'desc'      => 'Number of systems edited',
         ),
     );
 
@@ -48,8 +52,13 @@ class Tally
 
     function Execute()
     {
-        $this->SetDates();
         $this->SetAction();
+
+        if ($this->Action === "help") {
+            return $this->ShowHelp();
+        }
+
+        $this->SetDates();
         $this->SetLimit();
         $this->SetOutputMethod();
 
@@ -87,7 +96,15 @@ class Tally
         $action = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
 
         if (empty($action)) {
-            $action = 'added_system';
+            $this->Action = $this->EventTexts['added_system']['dbText'];
+
+            return;
+        }
+
+        if ($action === "help") {
+            $this->Action = "help";
+
+            return;
         }
 
         if (array_key_exists($action, $this->EventTexts)) {
@@ -198,6 +215,15 @@ class Tally
     function GetRandomColor($name)
     {
         return "#" . substr(md5($name), 0, 6);
+    }
+
+    private function ShowHelp() {
+        $help = array();
+        foreach ($this->EventTexts as $key => $value) {
+            if ($key === 'desc') $help[] = $value;
+        }
+
+        return $help;
     }
 }
 
