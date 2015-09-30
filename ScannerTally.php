@@ -15,30 +15,6 @@ class Tally
 {
     private $DBH;
     public $DateStart, $DateEnd, $Out, $Action, $LimitNumber;
-    public $dateTimeFormat = 'Y-m-d';
-
-    public $EventTexts = array(
-        'updated_signatures' => array(
-            'slackText' => 'updates signatures',
-            'dbText'    => 'Updated signature',
-            'desc'      => 'Number of updated signatures'
-        ),
-        'added_signature'    => array(
-            'slackText' => 'added signatures',
-            'dbText'    => 'Created signature',
-            'desc'      => 'Number of signatures added',
-        ),
-        'added_system'       => array(
-            'slackText' => 'added systems',
-            'dbText'    => 'Added system',
-            'desc'      => 'Number of systems added',
-        ),
-        'edited_system'      => array(
-            'slackText' => 'edited systems',
-            'dbText'    => 'Edited System',
-            'desc'      => 'Number of systems edited',
-        ),
-    );
 
     function __construct()
     {
@@ -52,13 +28,8 @@ class Tally
 
     function Execute()
     {
-        $this->SetAction();
-
-        if ($this->Action === "help") {
-            return $this->ShowHelp();
-        }
-
         $this->SetDates();
+        $this->SetAction();
         $this->SetLimit();
         $this->SetOutputMethod();
 
@@ -67,64 +38,85 @@ class Tally
 
     function SetDates()
     {
-        $inputStart = filter_input(INPUT_GET, 'start', FILTER_SANITIZE_STRING);
-        $inputEnd = filter_input(INPUT_GET, 'end', FILTER_SANITIZE_STRING);
+        if (!empty($_GET['start'])) {
+            $input = filter_input(INPUT_GET, 'start', FILTER_SANITIZE_NUMBER_INT);
+            $year = substr($input, 0, 4);
+            $month = substr($input, 5, 2);
+            $day = substr($input, 8, 2);
 
-        if (empty($inputStart) && empty($inputEnd)) {
-            $this->DateEnd = date($this->dateTimeFormat);
+            if (checkdate($month, $day, $year)) {
+                $this->DateStart = $input;
+            } else {
+                echo "Error validating start date input.<br>";
+                echo "Make sure you use YYYY-MM-DD for the date format.";
+                exit;
+            };
+
+            if (!empty($_GET['end'])) {
+                $input = filter_input(INPUT_GET, 'end', FILTER_SANITIZE_NUMBER_INT);
+                $year = substr($input, 0, 4);
+                $month = substr($input, 5, 2);
+                $day = substr($input, 8, 2);
+
+                if (checkdate($month, $day, $year)) {
+                    $this->DateEnd = $input;
+                } else {
+                    echo "Error validating end date input.<br>";
+                    echo "Make sure you use YYYY-MM-DD for the date format.";
+                    exit;
+                }
+            } else {
+                $start = strtotime($this->DateStart . '+1 month');
+                $this->DateEnd = date('Y-m-d', $start);
+            }
+        } else {
+            $this->DateEnd = date('Y-m-d');
             $last = strtotime('-1 month');
-            $this->DateStart = date($this->dateTimeFormat, $last);
-
-            return;
+            $this->DateStart = date('Y-m-d', $last);
         }
-
-        try {
-            $dateStart = new DateTime($inputStart);
-            $dateEnd = new DateTime($inputEnd);
-        } catch (Exception $e) {
-            echo "Error validating date input.<br>";
-            echo "Make sure you use YYYY-MM-DD for the date format.";
-            exit;
-        }
-
-        $this->DateStart = $dateStart->format($this->dateTimeFormat);
-        $this->DateEnd = $dateEnd->format($this->dateTimeFormat);
     }
 
     function SetAction()
     {
-        $action = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
+        $events = array(
+            'updated_signatures' => 'Updated signature',
+            'scanned_signatures' => 'Scanned signature',
+            'added_signatures'   => 'Created signature',
+            'added_systems'      => 'Added system',
+            'edited_systems'     => 'Edited System',
+        );
 
-        if (empty($action)) {
-            $this->Action = $this->EventTexts['added_system']['dbText'];
+        if (!empty($_GET['action'])) {
+            $input = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
 
-            return;
+            if (array_key_exists($input, $events)) {
+                $action = $events[$input];
+            } else {
+                echo "Error validating event type.<br>";
+                echo "Please use one of the following:<br>";
+                echo "<pre>";
+                foreach ($events as $key => $event) {
+                    echo $key . "\n";
+                }
+                echo "</pre>";
+                exit;
+            }
+        } else {
+            $action = $events['added_system'];
         }
 
-        if ($action === "help") {
-            $this->Action = "help";
-
-            return;
-        }
-
-        if (array_key_exists($action, $this->EventTexts)) {
-            $this->Action = $this->EventTexts[$action]['dbText'];
-
-            return;
-        }
-
-        echo "Error validating event type.<br>";
-        echo "Please use one of the following:<br>";
-        echo "<pre>";
-        foreach ($this->EventTexts as $key => $event) echo $key . "\n";
-        echo "</pre>";
-        exit;
+        $this->Action = $action;
     }
 
     function SetLimit()
     {
-        $input = filter_input(INPUT_GET, 'limit', FILTER_SANITIZE_NUMBER_INT);
-        $this->LimitNumber = $input ? $input : 5;
+        if (!empty($_GET['limit'])) {
+            $input = filter_input(INPUT_GET, 'limit', FILTER_SANITIZE_NUMBER_INT);
+
+            $this->LimitNumber = intval($input);
+        } else {
+            $this->LimitNumber = 5;
+        }
     }
 
     function SetOutputMethod()
@@ -134,25 +126,35 @@ class Tally
             'slack',
         );
 
-        $input = filter_input(INPUT_GET, 'out', FILTER_SANITIZE_STRING);
-
-        $outputMethod = $input ? $input : "stdout";
+        if (!empty($_GET['out'])) {
+            $outputMethod = filter_input(INPUT_GET, 'out', FILTER_SANITIZE_STRING);
+        } else {
+            $outputMethod = "stdout";
+        }
 
         if (array_search($outputMethod, $methods) === false) {
             echo "Error validating output method.<br>";
             echo "Please use one of the following:<br>";
             echo "<pre>";
-            foreach ($methods as $method) echo $method . "\n";
+            foreach ($methods as $method) {
+                echo $method . "\n";
+            }
             echo "</pre>";
             exit;
+        } else {
+            $this->Out = $outputMethod;
         }
-
-        $this->Out = $outputMethod;
     }
 
     function ExecuteQuery()
     {
         $LogAction = $this->Action . "%";
+
+        $what = array(
+            'Action'     => $this->Action,
+            'Start Date' => $this->DateStart,
+            'End Date'   => $this->DateEnd,
+        );
 
         $STH = $this->DBH->prepare(
             "SELECT user.username, COUNT(1) AS log_count FROM Map_maplog log
@@ -169,7 +171,9 @@ class Tally
         $STH->setFetchMode(PDO::FETCH_ASSOC);
 
         if ($STH->execute()) {
-            return $STH->fetchAll();
+            $result = $STH->fetchAll();
+
+            return array_merge($what, $result);
         } else {
             exit("Error executing query.");
         }
@@ -178,27 +182,29 @@ class Tally
     function SendToSlack($data)
     {
         $slackURL = SLACK_URL;
-        if (empty($slackURL)) exit("Slack URL empty.");
+        if (empty($slackURL)) {
+            exit("Slack URL empty.");
+        }
         $slackFormat = array();
-
-        $appendActionValue = $this->EventTexts[$this->Action]['slackText'] . ".";
 
         foreach ($data as $key => $person) {
             $slackFormat[$key] = array(
                 "title" => $person['username'],
-                "value" => $person['log_count'] . $appendActionValue,
+                "value" => $person['log_count'] . " systems added",
             );
         }
 
         $encode = array(
             "username"    => "Scanning Tally Bot",
-            "attachments" => array(array(
-                "fallback" => "This month's top scanner: " .
-                    $data[0]['username'] . " with " . $data[0]['log_count'] . $appendActionValue,
-                "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
-                "color"    => $this->GetRandomColor($data[0]['username']),
-                "fields"   => $slackFormat,
-            )),
+            "attachments" => array(
+                array(
+                    "fallback" => "This month's top scanner: " .
+                        $data[0]['username'] . " with " . $data[0]['log_count'] . " systems added!",
+                    "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
+                    "color"    => $this->GetRandomColor($data[0]['username']),
+                    "fields"   => $slackFormat,
+                )
+            ),
         );
 
         $encode = json_encode($encode, JSON_PRETTY_PRINT);
@@ -216,19 +222,16 @@ class Tally
     {
         return "#" . substr(md5($name), 0, 6);
     }
-
-    private function ShowHelp() {
-        $help = array();
-        foreach ($this->EventTexts as $key => $value) {
-            if ($key === 'desc') $help[] = $value;
-        }
-
-        return $help;
-    }
 }
 
 
 $Tally = new Tally();
+
+if (isset($_GET['help'])) {
+    include 'help.php';
+    exit;
+}
+
 $data = $Tally->Execute();
 
 switch ($Tally->Out) {
@@ -236,6 +239,7 @@ switch ($Tally->Out) {
         $Tally->SendToSlack($data);
         break;
     case 'stdout':
+    default;
     default:
         var_dump($data);
         break;
