@@ -6,10 +6,15 @@
     <style>
         * { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
         table {
-            margin: 16px;
             border: 1px solid black;
+            border-collapse: collapse;
         }
-        table tr {
+        table thead {
+            font-weight: bold;
+        }
+        table tr td {
+            padding:8px;
+            margin: 8px;
             border: 1px solid black;
         }
     </style>
