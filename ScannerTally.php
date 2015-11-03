@@ -79,33 +79,67 @@ class Tally
     function SetAction()
     {
         $events = array(
-            'updated_signatures' => 'Updated signature',
-            'scanned_signatures' => 'Scanned signature',
-            'added_signatures'   => 'Created signature',
-            'added_systems'      => 'Added system',
-            'edited_systems'     => 'Edited System',
+            'updated_signatures' => array(
+                'db'     => 'Updated_signature',
+                'desc'   => 'Number of signatures updated (changed after scanning)',
+                'result' => 'updated signatures'
+            ),
+            'scanned_signatures' => array(
+                'db'     => 'Scanned signature',
+                'desc'   => 'Number of signatures scanned (at least type added)',
+                'result' => 'scanned signatures'
+            ),
+            'added_signatures'   => array(
+                'db'     => 'Created signature',
+                'desc'   => 'Number of signatures added',
+                'result' => 'added signatures'
+            ),
+            'deleted_signatures' => array(
+                'db'     => 'Deleted signature',
+                'desc'   => 'Number of signatures deleted',
+                'result' => 'deleted signatures'
+            ),
+            'added_systems'      => array(
+                'db'    => 'Added system',
+                'desc'  => 'Number of systems added',
+                'result' => 'added systems'
+            ),
+            'edited_systems'    => array(
+                'db'    => 'Edited System',
+                'desc'  => 'Number of systems edited',
+                'result' => 'edited systems'
+            ),
+            'deleted_systems' => array(
+                'db' => 'Removed system',
+                'desc' => 'Number of systems deleted',
+                'result' => 'deleted systems'
+            ),
+            'updated_wormholes' => array(
+                'db' => 'Updated the wormhole between',
+                'desc' => 'Number of wormholes edited after adding a system',
+                'result' => 'updated wormholes'
+            )
         );
 
-        if (!empty($_GET['action'])) {
-            $input = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
-
-            if (array_key_exists($input, $events)) {
-                $action = $events[$input];
-            } else {
-                echo "Error validating event type.<br>";
-                echo "Please use one of the following:<br>";
-                echo "<pre>";
-                foreach ($events as $key => $event) {
-                    echo $key . "\n";
-                }
-                echo "</pre>";
-                exit;
-            }
-        } else {
-            $action = $events['added_system'];
+        if (empty($_GET['action'])) {
+            $this->Action = $events['added_systems'];
+            return;
         }
 
-        $this->Action = $action;
+        $input = filter_input(INPUT_GET, 'action', FILTER_SANITIZE_STRING);
+
+        if (array_key_exists($input, $events)) {
+            $this->Action = $events[$input];
+        } else {
+            echo "Error validating event type.<br>";
+            echo "Please use one of the following:<br>";
+            echo "<pre>";
+            foreach ($events as $key => $event) {
+                echo $key . "\n";
+            }
+            echo "</pre>";
+            exit;
+        }
     }
 
     function SetLimit()
@@ -148,10 +182,10 @@ class Tally
 
     function ExecuteQuery()
     {
-        $LogAction = $this->Action . "%";
+        $LogAction = $this->Action['db'] . "%";
 
         $what = array(
-            'Action'     => $this->Action,
+            'Action'     => $this->Action['result'],
             'Start Date' => $this->DateStart,
             'End Date'   => $this->DateEnd,
         );
@@ -189,7 +223,7 @@ class Tally
         foreach ($data as $key => $person) {
             $slackFormat[$key] = array(
                 "title" => $person['username'],
-                "value" => $person['log_count'] . strtolower($this->Action) . "s",
+                "value" => $person['log_count'] . $this->Action['result'],
             );
         }
 
@@ -198,7 +232,7 @@ class Tally
             "attachments" => array(
                 array(
                     "fallback" => "This month's top scanner: " .
-                        $data[0]['username'] . " with " . $data[0]['log_count'] . strtolower($this->Action) . "s!",
+                        $data[0]['username'] . " with " . $data[0]['log_count'] . $this->Action['result'],
                     "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
                     "color"    => $this->GetRandomColor($data[0]['username']),
                     "fields"   => $slackFormat,
@@ -238,7 +272,7 @@ switch ($Tally->Out) {
         $Tally->SendToSlack($data);
         break;
     case 'stdout':
-    default;
+    default:
         var_dump($data);
         break;
 }
