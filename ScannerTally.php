@@ -181,8 +181,7 @@ class Tally
 
     function SendToSlack($data)
     {
-        $slackURL = SLACK_URL;
-        if (empty($slackURL)) {
+        if (empty(SLACK_URL)) {
             exit("Slack URL empty.");
         }
         $slackFormat = array();
@@ -190,7 +189,7 @@ class Tally
         foreach ($data as $key => $person) {
             $slackFormat[$key] = array(
                 "title" => $person['username'],
-                "value" => $person['log_count'] . " systems added",
+                "value" => $person['log_count'] . strtolower($this->Action) . "s",
             );
         }
 
@@ -199,7 +198,7 @@ class Tally
             "attachments" => array(
                 array(
                     "fallback" => "This month's top scanner: " .
-                        $data[0]['username'] . " with " . $data[0]['log_count'] . " systems added!",
+                        $data[0]['username'] . " with " . $data[0]['log_count'] . strtolower($this->Action) . "s!",
                     "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
                     "color"    => $this->GetRandomColor($data[0]['username']),
                     "fields"   => $slackFormat,
@@ -209,7 +208,7 @@ class Tally
 
         $encode = json_encode($encode, JSON_PRETTY_PRINT);
 
-        $CH = curl_init($slackURL);
+        $CH = curl_init(SLACK_URL);
         curl_setopt($CH, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($CH, CURLOPT_POST, true);
         curl_setopt($CH, CURLOPT_POSTFIELDS, $encode);
@@ -240,7 +239,6 @@ switch ($Tally->Out) {
         break;
     case 'stdout':
     default;
-    default:
         var_dump($data);
         break;
 }
