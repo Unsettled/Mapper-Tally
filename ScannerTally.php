@@ -184,12 +184,6 @@ class Tally
     {
         $LogAction = $this->Action['db'] . "%";
 
-        $what = array(
-            'Action'     => $this->Action['result'],
-            'Start Date' => $this->DateStart,
-            'End Date'   => $this->DateEnd,
-        );
-
         $STH = $this->DBH->prepare(
             "SELECT user.username, COUNT(1) AS log_count FROM Map_maplog log
             JOIN account_ewsuser user ON user.id = log.user_id
@@ -205,12 +199,10 @@ class Tally
         $STH->setFetchMode(PDO::FETCH_ASSOC);
 
         if ($STH->execute()) {
-            $result = $STH->fetchAll();
-
-            return array_merge($what, $result);
-        } else {
-            exit("Error executing query.");
+            return $STH->fetchAll();
         }
+
+        exit("Error executing query.");
     }
 
     function SendToSlack($data)
@@ -223,7 +215,7 @@ class Tally
         foreach ($data as $key => $person) {
             $slackFormat[$key] = array(
                 "title" => $person['username'],
-                "value" => $person['log_count'] . $this->Action['result'],
+                "value" => $person['log_count'] . " " . $this->Action['result'],
             );
         }
 
@@ -233,7 +225,7 @@ class Tally
                 array(
                     "fallback" => "This month's top scanner: " .
                         $data[0]['username'] . " with " . $data[0]['log_count'] . $this->Action['result'],
-                    "pretext"  => "Top Scanners for period: \n" . $this->DateStart . "  to  " . $this->DateEnd,
+                    "pretext"  => "*Top scanners for period:* \n" . $this->DateStart . "  to  " . $this->DateEnd,
                     "color"    => $this->GetRandomColor($data[0]['username']),
                     "fields"   => $slackFormat,
                 )
@@ -273,6 +265,12 @@ switch ($Tally->Out) {
         break;
     case 'stdout':
     default:
-        var_dump($data);
+        $info = array(
+            'Action'     => $Tally->Action['result'],
+            'Start Date' => $Tally->DateStart,
+            'End Date'   => $Tally->DateEnd,
+        );
+
+        var_dump(array_merge($info, $data));
         break;
 }
